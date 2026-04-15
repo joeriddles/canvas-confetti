@@ -856,6 +856,213 @@
     };
   }
 
+  var butterflyDefaults = {
+    butterflyCount: 8,
+    colors: [
+      '#ff8ad8',
+      '#a25afd',
+      '#26ccff',
+      '#88ff5a',
+      '#fcff42',
+      '#ffa62d'
+    ],
+    scalar: 1,
+    side: 'random',
+    speed: 2,
+    flutterAmplitude: 30,
+    flutterFrequency: 0.03,
+    flapSpeed: 0.25,
+    ticks: 600,
+    zIndex: 100,
+    disableForReducedMotion: false
+  };
+
+  function butterflyProp(options, name) {
+    return options && isOk(options[name]) ? options[name] : butterflyDefaults[name];
+  }
+
+  function makeButterfly(opts, width, height) {
+    var side = opts.side;
+    if (side === 'random') {
+      side = Math.random() < 0.5 ? 'left' : 'right';
+    }
+
+    var fromLeft = side === 'left';
+    var speed = opts.speed * (0.7 + Math.random() * 0.6);
+
+    return {
+      x: fromLeft ? -20 : width + 20,
+      baseY: (0.15 + Math.random() * 0.7) * height,
+      vx: fromLeft ? speed : -speed,
+      sinePhase: Math.random() * Math.PI * 2,
+      sineFreq: opts.flutterFrequency * (0.7 + Math.random() * 0.6),
+      sineAmp: opts.flutterAmplitude * (0.7 + Math.random() * 0.6),
+      wingPhase: Math.random() * Math.PI * 2,
+      wingSpeed: opts.flapSpeed * (0.8 + Math.random() * 0.4),
+      color: opts.colors[randomInt(0, opts.colors.length)],
+      scalar: opts.scalar * (0.8 + Math.random() * 0.4),
+      tick: 0,
+      totalTicks: opts.ticks,
+      width: width
+    };
+  }
+
+  function drawButterfly(context, b) {
+    var fade = b.tick < 30 ? b.tick / 30 :
+      (b.totalTicks - b.tick) < 30 ? (b.totalTicks - b.tick) / 30 : 1;
+    var c = b.color;
+    var scale = b.scalar;
+    var tilt = Math.sin(b.sinePhase) * 0.25;
+    var wingOpen = Math.abs(Math.cos(b.wingPhase));
+    // keep a minimum sliver so wings don't fully vanish edge-on
+    var wingScaleX = 0.2 + wingOpen * 0.8;
+
+    context.save();
+    context.translate(b.x, b.y);
+    if (b.vx < 0) {
+      context.scale(-1, 1);
+    }
+    context.rotate(tilt);
+
+    // body: dark vertical ellipse
+    context.fillStyle = 'rgba(40, 30, 50, ' + fade + ')';
+    context.beginPath();
+    ellipse(context, 0, 0, 1.2 * scale, 6 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+
+    // wings: two upper (larger), two lower (smaller). Use wingScaleX for flap.
+    var wingFill = 'rgba(' + c.r + ', ' + c.g + ', ' + c.b + ', ' + (fade * 0.9) + ')';
+    var wingEdge = 'rgba(' + Math.max(0, c.r - 40) + ', ' + Math.max(0, c.g - 40) + ', ' + Math.max(0, c.b - 40) + ', ' + fade + ')';
+
+    // upper wings
+    context.fillStyle = wingFill;
+    context.strokeStyle = wingEdge;
+    context.lineWidth = 0.5 * scale;
+
+    context.beginPath();
+    ellipse(context, -7 * scale * wingScaleX, -3 * scale, 7 * scale * wingScaleX, 5 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+
+    context.beginPath();
+    ellipse(context, 7 * scale * wingScaleX, -3 * scale, 7 * scale * wingScaleX, 5 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+
+    // lower wings
+    context.beginPath();
+    ellipse(context, -5 * scale * wingScaleX, 3 * scale, 5 * scale * wingScaleX, 4 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+
+    context.beginPath();
+    ellipse(context, 5 * scale * wingScaleX, 3 * scale, 5 * scale * wingScaleX, 4 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+
+    // small wing dots
+    context.fillStyle = 'rgba(255, 255, 255, ' + (fade * 0.6) + ')';
+    context.beginPath();
+    ellipse(context, -7 * scale * wingScaleX, -3 * scale, 1.5 * scale * wingScaleX, 1.5 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    ellipse(context, 7 * scale * wingScaleX, -3 * scale, 1.5 * scale * wingScaleX, 1.5 * scale, 0, 0, Math.PI * 2);
+    context.fill();
+
+    context.restore();
+  }
+
+  function updateButterfly(context, b) {
+    b.x += b.vx;
+    b.wingPhase += b.wingSpeed;
+    b.sinePhase += b.sineFreq * 2 * Math.PI;
+    b.y = b.baseY + Math.sin(b.sinePhase) * b.sineAmp;
+    b.tick++;
+
+    drawButterfly(context, b);
+
+    var offscreen = b.vx > 0 ? b.x > b.width + 40 : b.x < -40;
+    return b.tick < b.totalTicks && !offscreen;
+  }
+
+  function butterflies(options) {
+    options = options || {};
+
+    var disableForReducedMotion = !!butterflyProp(options, 'disableForReducedMotion');
+    var preferLessMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion)').matches;
+
+    if (disableForReducedMotion && preferLessMotion) {
+      return promise(function (resolve) { resolve(); });
+    }
+
+    var count = onlyPositiveInt(butterflyProp(options, 'butterflyCount'));
+    var colors = colorsToRgb(butterflyProp(options, 'colors'));
+    var opts = {
+      colors: colors,
+      scalar: Number(butterflyProp(options, 'scalar')),
+      side: String(butterflyProp(options, 'side')),
+      speed: Number(butterflyProp(options, 'speed')),
+      flutterAmplitude: Number(butterflyProp(options, 'flutterAmplitude')),
+      flutterFrequency: Number(butterflyProp(options, 'flutterFrequency')),
+      flapSpeed: Number(butterflyProp(options, 'flapSpeed')),
+      ticks: Number(butterflyProp(options, 'ticks'))
+    };
+    var zIndex = Number(butterflyProp(options, 'zIndex'));
+
+    var canvas = getCanvas(zIndex);
+    document.body.appendChild(canvas);
+    setCanvasWindowSize(canvas);
+
+    var size = { width: canvas.width, height: canvas.height };
+    var context = canvas.getContext('2d');
+
+    var flies = [];
+    for (var i = 0; i < count; i++) {
+      flies.push(makeButterfly(opts, size.width, size.height));
+    }
+
+    function onResize() {
+      size.width = null;
+      size.height = null;
+    }
+    global.addEventListener('resize', onResize, false);
+
+    var animationFrame;
+
+    return promise(function (resolve) {
+      function cleanup() {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        global.removeEventListener('resize', onResize);
+        if (document.body.contains(canvas)) {
+          document.body.removeChild(canvas);
+        }
+        resolve();
+      }
+
+      function update() {
+        if (!size.width || !size.height) {
+          setCanvasWindowSize(canvas);
+          size.width = canvas.width;
+          size.height = canvas.height;
+          for (var j = 0; j < flies.length; j++) {
+            flies[j].width = size.width;
+          }
+        }
+
+        context.clearRect(0, 0, size.width, size.height);
+        flies = flies.filter(function (b) { return updateButterfly(context, b); });
+
+        if (flies.length) {
+          animationFrame = raf.frame(update);
+        } else {
+          cleanup();
+        }
+      }
+
+      animationFrame = raf.frame(update);
+    });
+  }
+
   module.exports = function() {
     return getDefaultFire().apply(this, arguments);
   };
@@ -865,6 +1072,7 @@
   module.exports.create = confettiCannon;
   module.exports.shapeFromPath = shapeFromPath;
   module.exports.shapeFromText = shapeFromText;
+  module.exports.butterflies = butterflies;
 }((function () {
   if (typeof window !== 'undefined') {
     return window;

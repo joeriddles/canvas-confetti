@@ -566,6 +566,30 @@
   </div>
 
   <div class="container">
+    <div class="group" data-name="butterflies">
+      <div class="flex-rows">
+        <div class="left">
+          <h2><a href="#butterflies" id="butterflies" class="anchor">Butterflies</a></h2>
+          <button class="run">
+            Run
+            <span class="icon">
+              <svg class="icon"><use xlink:href="#run"></use></svg>
+            </span>
+          </button>
+        </div>
+        <div class="description">
+          <p>
+            Sometimes a pile of confetti just isn't enough. Release a kaleidoscope of butterflies
+            that flutter across the screen with flapping wings. They come in from the sides
+            and drift along a gentle sine-wave path.
+          </p>
+        </div>
+      </div>
+      <div class="editor"></div>
+    </div>
+  </div>
+
+  <div class="container">
     <div class="group" data-name="custom">
       <div class="flex-rows">
         <div class="left">
@@ -923,6 +947,17 @@
         setTimeout(shoot, 0);
         setTimeout(shoot, 100);
         setTimeout(shoot, 200);
+      },
+      butterflies: function () {
+        confetti.butterflies({
+          butterflyCount: 12,
+          side: 'random',
+          colors: ['#ff8ad8', '#a25afd', '#26ccff', '#88ff5a', '#fcff42', '#ffa62d'],
+          scalar: 1.4,
+          speed: 2.5,
+          flutterAmplitude: 40,
+          ticks: 800
+        });
       }
     };
 
