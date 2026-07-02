@@ -872,7 +872,6 @@
     flutterAmplitude: 30,
     flutterFrequency: 0.03,
     flapSpeed: 0.25,
-    ticks: 600,
     zIndex: 100,
     disableForReducedMotion: false
   };
@@ -889,9 +888,13 @@
 
     var fromLeft = side === 'left';
     var speed = opts.speed * (0.7 + Math.random() * 0.6);
+    var stagger = Math.random() * 150;
+    var totalDistance = width + 60 + stagger;
+    var totalTicks = Math.ceil(totalDistance / speed);
+    var color = opts.colors[randomInt(0, opts.colors.length)];
 
     return {
-      x: fromLeft ? -20 : width + 20,
+      x: fromLeft ? -20 - stagger : width + 20 + stagger,
       baseY: (0.15 + Math.random() * 0.7) * height,
       vx: fromLeft ? speed : -speed,
       sinePhase: Math.random() * Math.PI * 2,
@@ -899,10 +902,12 @@
       sineAmp: opts.flutterAmplitude * (0.7 + Math.random() * 0.6),
       wingPhase: Math.random() * Math.PI * 2,
       wingSpeed: opts.flapSpeed * (0.8 + Math.random() * 0.4),
-      color: opts.colors[randomInt(0, opts.colors.length)],
+      color: color,
+      colorStr: color.r + ', ' + color.g + ', ' + color.b,
+      edgeColorStr: Math.max(0, color.r - 40) + ', ' + Math.max(0, color.g - 40) + ', ' + Math.max(0, color.b - 40),
       scalar: opts.scalar * (0.8 + Math.random() * 0.4),
       tick: 0,
-      totalTicks: opts.ticks,
+      totalTicks: totalTicks,
       width: width
     };
   }
@@ -910,12 +915,17 @@
   function drawButterfly(context, b) {
     var fade = b.tick < 30 ? b.tick / 30 :
       (b.totalTicks - b.tick) < 30 ? (b.totalTicks - b.tick) / 30 : 1;
-    var c = b.color;
     var scale = b.scalar;
     var tilt = Math.sin(b.sinePhase) * 0.25;
     var wingOpen = Math.abs(Math.cos(b.wingPhase));
-    // keep a minimum sliver so wings don't fully vanish edge-on
     var wingScaleX = 0.2 + wingOpen * 0.8;
+
+    var uwx = 7 * scale * wingScaleX;
+    var uwy = 5 * scale;
+    var lwx = 5 * scale * wingScaleX;
+    var lwy = 4 * scale;
+    var uy = -3 * scale;
+    var ly = 3 * scale;
 
     context.save();
     context.translate(b.x, b.y);
@@ -924,50 +934,66 @@
     }
     context.rotate(tilt);
 
-    // body: dark vertical ellipse
     context.fillStyle = 'rgba(40, 30, 50, ' + fade + ')';
     context.beginPath();
-    ellipse(context, 0, 0, 1.2 * scale, 6 * scale, 0, 0, Math.PI * 2);
+    context.ellipse ?
+      context.ellipse(0, 0, 1.2 * scale, 6 * scale, 0, 0, Math.PI * 2) :
+      ellipse(context, 0, 0, 1.2 * scale, 6 * scale, 0, 0, Math.PI * 2);
     context.fill();
 
-    // wings: two upper (larger), two lower (smaller). Use wingScaleX for flap.
-    var wingFill = 'rgba(' + c.r + ', ' + c.g + ', ' + c.b + ', ' + (fade * 0.9) + ')';
-    var wingEdge = 'rgba(' + Math.max(0, c.r - 40) + ', ' + Math.max(0, c.g - 40) + ', ' + Math.max(0, c.b - 40) + ', ' + fade + ')';
-
-    // upper wings
-    context.fillStyle = wingFill;
-    context.strokeStyle = wingEdge;
+    context.fillStyle = 'rgba(' + b.colorStr + ', ' + (fade * 0.9) + ')';
+    context.strokeStyle = 'rgba(' + b.edgeColorStr + ', ' + fade + ')';
     context.lineWidth = 0.5 * scale;
 
-    context.beginPath();
-    ellipse(context, -7 * scale * wingScaleX, -3 * scale, 7 * scale * wingScaleX, 5 * scale, 0, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
+    if (context.ellipse) {
+      context.beginPath();
+      context.ellipse(-uwx, uy, uwx, uwy, 0, 0, Math.PI * 2);
+      context.moveTo(uwx + uwx, uy);
+      context.ellipse(uwx, uy, uwx, uwy, 0, 0, Math.PI * 2);
+      context.moveTo(0, ly);
+      context.ellipse(-lwx, ly, lwx, lwy, 0, 0, Math.PI * 2);
+      context.moveTo(lwx + lwx, ly);
+      context.ellipse(lwx, ly, lwx, lwy, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
 
-    context.beginPath();
-    ellipse(context, 7 * scale * wingScaleX, -3 * scale, 7 * scale * wingScaleX, 5 * scale, 0, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
+      var dotRx = 1.5 * scale * wingScaleX;
+      var dotRy = 1.5 * scale;
+      context.fillStyle = 'rgba(255, 255, 255, ' + (fade * 0.6) + ')';
+      context.beginPath();
+      context.ellipse(-uwx, uy, dotRx, dotRy, 0, 0, Math.PI * 2);
+      context.moveTo(uwx + dotRx, uy);
+      context.ellipse(uwx, uy, dotRx, dotRy, 0, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      context.beginPath();
+      ellipse(context, -uwx, uy, uwx, uwy, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
 
-    // lower wings
-    context.beginPath();
-    ellipse(context, -5 * scale * wingScaleX, 3 * scale, 5 * scale * wingScaleX, 4 * scale, 0, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
+      context.beginPath();
+      ellipse(context, uwx, uy, uwx, uwy, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
 
-    context.beginPath();
-    ellipse(context, 5 * scale * wingScaleX, 3 * scale, 5 * scale * wingScaleX, 4 * scale, 0, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
+      context.beginPath();
+      ellipse(context, -lwx, ly, lwx, lwy, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
 
-    // small wing dots
-    context.fillStyle = 'rgba(255, 255, 255, ' + (fade * 0.6) + ')';
-    context.beginPath();
-    ellipse(context, -7 * scale * wingScaleX, -3 * scale, 1.5 * scale * wingScaleX, 1.5 * scale, 0, 0, Math.PI * 2);
-    context.fill();
-    context.beginPath();
-    ellipse(context, 7 * scale * wingScaleX, -3 * scale, 1.5 * scale * wingScaleX, 1.5 * scale, 0, 0, Math.PI * 2);
-    context.fill();
+      context.beginPath();
+      ellipse(context, lwx, ly, lwx, lwy, 0, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+
+      context.fillStyle = 'rgba(255, 255, 255, ' + (fade * 0.6) + ')';
+      context.beginPath();
+      ellipse(context, -uwx, uy, 1.5 * scale * wingScaleX, 1.5 * scale, 0, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      ellipse(context, uwx, uy, 1.5 * scale * wingScaleX, 1.5 * scale, 0, 0, Math.PI * 2);
+      context.fill();
+    }
 
     context.restore();
   }
@@ -1004,8 +1030,7 @@
       speed: Number(butterflyProp(options, 'speed')),
       flutterAmplitude: Number(butterflyProp(options, 'flutterAmplitude')),
       flutterFrequency: Number(butterflyProp(options, 'flutterFrequency')),
-      flapSpeed: Number(butterflyProp(options, 'flapSpeed')),
-      ticks: Number(butterflyProp(options, 'ticks'))
+      flapSpeed: Number(butterflyProp(options, 'flapSpeed'))
     };
     var zIndex = Number(butterflyProp(options, 'zIndex'));
 
